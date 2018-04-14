@@ -1,0 +1,53 @@
+FROM ubuntu:16.04
+
+# inspired by webanck/docker-wine-steam
+
+# preparations
+ENV DEBIAN_FRONTEND noninteractive
+ENV LANG fr_FR.UTF-8
+ENV LANGUAGE fr_FR:en
+ENV LC_ALL fr_FR.UTF-8
+# activate i386 arch for Wine and install stuff we need
+RUN locale-gen fr_FR.UTF-8 && \
+dpkg --add-architecture i386 && \
+	apt-get update && \
+        BUILD_PACKAGES='wget software-properties-common unzip apt-transport-https openssh-server xauth cabextract winbind squashfs-tools xvfb ' &&\
+	apt-get -qy upgrade && apt-get -qy install $BUILD_PACKAGES && \
+        AUTO_ADDED_PACKAGES=`apt-mark showauto` && \	
+	# install latest Wine
+	wget -qO- https://dl.winehq.org/wine-builds/Release.key | apt-key add - && \
+	apt-add-repository https://dl.winehq.org/wine-builds/ubuntu/ && \
+	apt-get update && apt-get -qy install --no-install-recommends winehq-devel && \
+
+	# make sshd work and enable X11 forwarding
+	# create our user for Wine
+useradd -d /home/gg -m -s /bin/bash gg && \
+echo gg:gg | chpasswd && \ 
+	# winetricks
+	wget https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks -O /tmp/winetricks && \
+	chmod +x /tmp/winetricks && \
+echo $AUTO_ADDED_PACKAGES && \
+sleep 11
+        USER gg 
+ENV WINEDEBUG=-all WINEPREFIX=/home/gg/.wine WINEARCH=win32
+RUN winecfg && \
+xvfb-run -a /tmp/winetricks -q --unattended dotnet45 corefonts comctl32 gdiplus vcrun2010 ie8
+        USER root	
+	# cleaning up
+	RUN apt-get autoremove -y --purge software-properties-common && \
+	apt-get autoremove -y --purge && \
+	apt-get remove --purge -y software-properties-common apt-transport-https openssh-server xauth cabextract winbind squashfs-tools pulseaudio x11-apps xfce4 cups joe xfce4-terminal xvfb socat x11vnc && \
+	apt-get clean -y && \
+	rm -rf /home/wine/.cache && \
+	rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /tmp/inetricks
+USER gg
+RUN wget -q -O- http://v3.captvty.fr/ | egrep -o '\/\/.+?\.zip' | sed 's/\/\//http:\/\//' | xargs wget -O /tmp/v3Captvty.zip && \
+ls -alrt /tmp/v3Cap*zip && unzip -d  ~/Captvtyv3 /tmp/v3Captvty.zip && rm /tmp/v3Captvty.zip 
+USER root
+RUN apt-get remove --purge -y wget &&\
+        apt-get clean -y && \
+	apt-get autoremove -y && \
+	rm -rf /home/wine/.cache && \
+        rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+USER gg
+CMD wine /home/gg/Captvtyv3/Captvty.exe
